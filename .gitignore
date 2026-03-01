@@ -1,0 +1,7 @@
+# Создайте файл .gitignore
+@"
+.env
+venv/
+__pycache__/
+*.pyc
+"@ | Out-File -FilePath .gitignore -Encoding utf8

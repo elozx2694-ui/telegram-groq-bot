@@ -1,4 +1,3 @@
 pyTelegramBotAPI==4.20.0
-groq==0.8.0
 requests==2.31.0
-# force rebuild 1
+python-dotenv==1.0.0

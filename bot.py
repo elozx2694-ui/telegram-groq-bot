@@ -1,19 +1,22 @@
 import telebot
-from groq import Groq
+import requests
 import os
+import json
+from dotenv import load_dotenv
 
-# Берем токены из переменных окружения Render
+load_dotenv()
+
 TELEGRAM_TOKEN = os.environ.get('TELEGRAM_TOKEN')
 GROQ_API_KEY = os.environ.get('GROQ_API_KEY')
 
-# Проверка что токены есть
 if not TELEGRAM_TOKEN or not GROQ_API_KEY:
     print("Ошибка: Не заданы токены в переменных окружения")
     exit(1)
 
-# Инициализация
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
-groq_client = Groq(api_key=GROQ_API_KEY)
+
+# URL для Groq API
+GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 
 # Доступные модели
 MODELS = {
@@ -26,6 +29,28 @@ MODELS = {
 
 current_model = 'llama-3.1-8b-instant'
 user_history = {}
+
+def ask_groq(messages, model):
+    """Отправляет запрос к Groq API и возвращает ответ"""
+    headers = {
+        "Authorization": f"Bearer {GROQ_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    
+    data = {
+        "model": model,
+        "messages": messages,
+        "temperature": 0.7,
+        "max_tokens": 2048
+    }
+    
+    try:
+        response = requests.post(GROQ_API_URL, headers=headers, json=data, timeout=30)
+        response.raise_for_status()
+        result = response.json()
+        return result['choices'][0]['message']['content']
+    except requests.exceptions.RequestException as e:
+        raise Exception(f"Ошибка запроса к Groq API: {str(e)}")
 
 @bot.message_handler(commands=['start'])
 def start(message):
@@ -81,25 +106,18 @@ def chat(message):
         user_history[user_id] = user_history[user_id][-20:]
     
     try:
-        response = groq_client.chat.completions.create(
-            model=current_model,
-            messages=user_history[user_id],
-            temperature=0.7,
-            max_tokens=2048
-        )
-        
-        answer = response.choices[0].message.content
+        answer = ask_groq(user_history[user_id], current_model)
         user_history[user_id].append({"role": "assistant", "content": answer})
         bot.reply_to(message, answer)
         
     except Exception as e:
         error_text = str(e)
         if '403' in error_text:
-            bot.reply_to(message, "Ошибка доступа к Groq API. Проверь ключ в настройках Render")
+            bot.reply_to(message, "Ошибка доступа к Groq API. Проверь ключ в настройках")
         elif 'model_not_found' in error_text:
             bot.reply_to(message, f"Модель {current_model} не найдена. Выбери другую через /models")
         else:
             bot.reply_to(message, f"Ошибка: {error_text[:100]}")
 
-print("Бот запущен на Render!")
+print("Бот запущен!")
 bot.infinity_polling()
