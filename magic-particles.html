@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8"
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>✨ Магические Частицы ✨</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            overflow: hidden;
+            background: #0a0a0a;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            cursor: none;
+        }
+
+        #canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        .info {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 14px;
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 15px;
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+            max-width: 300px;
+        }
+
+        .info h1 {
+            font-size: 24px;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, #667eea, #764ba2, #f093fb);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .info p {
+            margin: 5px 0;
+            line-height: 1.6;
+        }
+
+        .controls {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 10px;
+            z-index: 100;
+        }
+
+        button {
+            padding: 10px 20px;
+            background: rgba(102, 126, 234, 0.8);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+            backdrop-filter: blur(10px);
+        }
+
+        button:hover {
+            background: rgba(102, 126, 234, 1);
+            transform: scale(1.05);
+        }
+
+        .custom-cursor {
+            position: fixed;
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(102, 126, 234, 0.8);
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 1000;
+            transform: translate(-50%, -50%);
+            transition: width 0.2s, height 0.2s;
+        }
+
+        .custom-cursor.active {
+            width: 40px;
+            height: 40px;
+            border-color: rgba(240, 147, 251, 0.8);
+        }
+    </style>
+</head>
+<body>
+    <div class="custom-cursor" id="cursor"></div>
+    
+    <div class="info">
+        <h1>✨ Магические Частицы</h1>
+        <p>🎯 Двигайте мышью - частицы следуют за вами</p>
+        <p>🖱️ Кликните - создайте взрыв частиц</p>
+        <p>⌨️ Нажмите пробел - измените режим</p>
+        <p>🎨 Нажмите R - случайные цвета</p>
+    </div>
+
+    <div class="controls">
+        <button onclick="changeMode()">Сменить режим</button>
+        <button onclick="randomColors()">Случайные цвета</button>
+        <button onclick="reset()">Сброс</button>
+    </div>
+
+    <canvas id="canvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const cursor = document.getElementById('cursor');
+        
+        let width = window.innerWidth;
+        let height = window.innerHeight;
+        canvas.width = width;
+        canvas.height = height;
+
+        // Настройки
+        const config = {
+            particleCount: 150,
+            connectionDistance: 120,
+            mouseRadius: 80,
+            speed: 0.5,
+            mode: 'flow', // 'flow', 'orbit', 'wave'
+            colorMode: 'gradient' // 'gradient', 'random'
+        };
+
+        // Массивы
+        const particles = [];
+        const mouse = { x: width / 2, y: height / 2 };
+        const colors = [
+            { r: 102, g: 126, b: 234 }, // #667eea
+            { r: 118, g: 75, b: 162 },  // #764ba2
+            { r: 240, g: 147, b: 251 }  // #f093fb
+        ];
+
+        // Класс частицы
+        class Particle {
+            constructor() {
+                this.reset();
+                this.baseX = Math.random() * width;
+                this.baseY = Math.random() * height;
+            }
+
+            reset() {
+                this.x = Math.random() * width;
+                this.y = Math.random() * height;
+                this.vx = (Math.random() - 0.5) * config.speed;
+                this.vy = (Math.random() - 0.5) * config.speed;
+                this.size = Math.random() * 3 + 1;
+                this.color = this.getColor();
+            }
+
+            getColor() {
+                if (config.colorMode === 'random') {
+                    return {
+                        r: Math.random() * 255,
+                        g: Math.random() * 255,
+                        b: Math.random() * 255
+                    };
+                }
+                const color = colors[Math.floor(Math.random() * colors.length)];
+                return {
+                    r: color.r + Math.random() * 50 - 25,
+                    g: color.g + Math.random() * 50 - 25,
+                    b: color.b + Math.random() * 50 - 25
+                };
+            }
+
+            update() {
+                const dx = mouse.x - this.x;
+                const dy = mouse.y - this.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+
+                switch(config.mode) {
+                    case 'flow':
+                        if (distance < config.mouseRadius) {
+                            const angle = Math.atan2(dy, dx);
+                            const force = (config.mouseRadius - distance) / config.mouseRadius;
+                            this.vx -= Math.cos(angle) * force * 0.1;
+                            this.vy -= Math.sin(angle) * force * 0.1;
+                        }
+                        this.vx *= 0.98;
+                        this.vy *= 0.98;
+                        break;
+
+                    case 'orbit':
+                        if (distance < config.mouseRadius * 2) {
+                            const angle = Math.atan2(dy, dx) + Math.PI / 2;
+                            const force = (config.mouseRadius * 2 - distance) / (config.mouseRadius * 2);
+                            this.vx += Math.cos(angle) * force * 0.2;
+                            this.vy += Math.sin(angle) * force * 0.2;
+                        }
+                        this.vx *= 0.95;
+                        this.vy *= 0.95;
+                        break;
+
+                    case 'wave':
+                        const waveX = this.baseX + Math.sin(Date.now() * 0.001 + this.baseY * 0.01) * 50;
+                        const waveY = this.baseY + Math.cos(Date.now() * 0.001 + this.baseX * 0.01) * 50;
+                        this.vx += (waveX - this.x) * 0.01;
+                        this.vy += (waveY - this.y) * 0.01;
+                        this.vx *= 0.9;
+                        this.vy *= 0.9;
+                        break;
+                }
+
+                this.x += this.vx;
+                this.y += this.vy;
+
+                // Границы с отскоком
+                if (this.x < 0 || this.x > width) this.vx *= -0.8;
+                if (this.y < 0 || this.y > height) this.vy *= -0.8;
+                
+                this.x = Math.max(0, Math.min(width, this.x));
+                this.y = Math.max(0, Math.min(height, this.y));
+            }
+
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(${Math.floor(this.color.r)}, ${Math.floor(this.color.g)}, ${Math.floor(this.color.b)}, 0.8)`;
+                ctx.fill();
+            }
+        }
+
+        // Создание частиц
+        for (let i = 0; i < config.particleCount; i++) {
+            particles.push(new Particle());
+        }
+
+        // Рисование связей
+        function drawConnections() {
+            for (let i = 0; i < particles.length; i++) {
+                for (let j = i + 1; j < particles.length; j++) {
+                    const dx = particles[i].x - particles[j].x;
+                    const dy = particles[i].y - particles[j].y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+
+                    if (distance < config.connectionDistance) {
+                        const opacity = 1 - distance / config.connectionDistance;
+                        ctx.beginPath();
+                        ctx.moveTo(particles[i].x, particles[i].y);
+                        ctx.lineTo(particles[j].x, particles[j].y);
+                        ctx.strokeStyle = `rgba(102, 126, 234, ${opacity * 0.3})`;
+                        ctx.lineWidth = 1;
+                        ctx.stroke();
+                    }
+                }
+            }
+        }
+
+        // Взрыв частиц при клике
+        function explode(x, y) {
+            particles.forEach(particle => {
+                const dx = particle.x - x;
+                const dy = particle.y - y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                const force = 10 / (distance + 1);
+                particle.vx += (dx / distance) * force;
+                particle.vy += (dy / distance) * force;
+            });
+        }
+
+        // Анимация
+        function animate() {
+            ctx.fillStyle = 'rgba(10, 10, 10, 0.1)';
+            ctx.fillRect(0, 0, width, height);
+
+            particles.forEach(particle => {
+                particle.update();
+            });
+
+            drawConnections();
+            particles.forEach(particle => {
+                particle.draw();
+            });
+
+            // Рисование эффекта вокруг мыши
+            const gradient = ctx.createRadialGradient(mouse.x, mouse.y, 0, mouse.x, mouse.y, config.mouseRadius);
+            gradient.addColorStop(0, 'rgba(102, 126, 234, 0.1)');
+            gradient.addColorStop(1, 'rgba(102, 126, 234, 0)');
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.arc(mouse.x, mouse.y, config.mouseRadius, 0, Math.PI * 2);
+            ctx.fill();
+
+            requestAnimationFrame(animate);
+        }
+
+        // События мыши
+        window.addEventListener('mousemove', (e) => {
+            mouse.x = e.clientX;
+            mouse.y = e.clientY;
+            cursor.style.left = e.clientX + 'px';
+            cursor.style.top = e.clientY + 'px';
+        });
+
+        window.addEventListener('mousedown', (e) => {
+            cursor.classList.add('active');
+            explode(e.clientX, e.clientY);
+        });
+
+        window.addEventListener('mouseup', () => {
+            cursor.classList.remove('active');
+        });
+
+        // Клавиатура
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                e.preventDefault();
+                changeMode();
+            } else if (e.key.toLowerCase() === 'r') {
+                randomColors();
+            }
+        });
+
+        // Функции управления
+        function changeMode() {
+            const modes = ['flow', 'orbit', 'wave'];
+            const currentIndex = modes.indexOf(config.mode);
+            config.mode = modes[(currentIndex + 1) % modes.length];
+            
+            particles.forEach(particle => {
+                particle.baseX = particle.x;
+                particle.baseY = particle.y;
+            });
+        }
+
+        function randomColors() {
+            config.colorMode = config.colorMode === 'gradient' ? 'random' : 'gradient';
+            particles.forEach(particle => {
+                particle.color = particle.getColor();
+            });
+        }
+
+        function reset() {
+            particles.forEach(particle => {
+                particle.reset();
+            });
+        }
+
+        // Изменение размера окна
+        window.addEventListener('resize', () => {
+            width = window.innerWidth;
+            height = window.innerHeight;
+            canvas.width = width;
+            canvas.height = height;
+        });
+
+        // Запуск анимации
+        animate();
+
+        // Скрытие системного курсора
+        document.body.style.cursor = 'none';
+    </script>
+</body>
+</html>
