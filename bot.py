@@ -27,16 +27,15 @@ GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 # Инициализация бота
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
-# Доступные модели
+# Доступные модели (только проверенные рабочие)
 MODELS = {
-    '1': 'llama-3.1-70b-versatile',
-    '2': 'llama-3.1-8b-instant',
-    '3': 'mixtral-8x7b-32768',
-    '4': 'gemma2-9b-it',
-    '5': 'deepseek-r1-distill-llama-70b'
+    '1': 'llama-3.1-8b-instant',  # Быстрая, всегда работает
+    '2': 'llama-3.1-70b-versatile', # Мощная, может быть платной
+    '3': 'mixtral-8x7b-32768',      # Популярная
 }
 
-current_model = 'llama-3.1-8b-instant'
+current_model = 'llama-3.1-8b-instant'  # По умолчанию рабочая
+
 user_history = {}
 
 # ========== ВЕБ-СЕРВЕР ДЛЯ RENDER ==========
