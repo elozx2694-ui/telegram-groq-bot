@@ -28,13 +28,15 @@ GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 # Инициализация бота
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
-# Модели Groq (проверенные рабочие)
+# Модели Groq
 MODELS = {
     '1': {'name': 'llama-3.1-8b-instant', 'desc': 'Llama 3.1 8B (fast)'},
     '2': {'name': 'llama-3.1-70b-versatile', 'desc': 'Llama 3.1 70B (powerful)'},
     '3': {'name': 'mixtral-8x7b-32768', 'desc': 'Mixtral 8x7B'},
-    '4': {'name': 'gemma2-9b-it', 'desc': 'Gemma 2 9B'},
+    '4': {'name': 'gemma2-9b-it', 'desc': 'Gemma 2 9B (Google)'},
     '5': {'name': 'qwen-2.5-72b', 'desc': 'Qwen 2.5 72B'},
+    '6': {'name': 'qwen-2.5-32b', 'desc': 'Qwen 2.5 32B'},
+    '7': {'name': 'deepseek-r1-distill-llama-70b', 'desc': 'DeepSeek R1 (via Groq)'},
 }
 
 # Модель по умолчанию - Llama 3.1 70B
@@ -68,7 +70,6 @@ def ask_groq(messages, model):
         "Content-Type": "application/json"
     }
     
-    # Правильный формат для Groq API
     data = {
         "model": model,
         "messages": messages,
@@ -88,20 +89,10 @@ def ask_groq(messages, model):
             timeout=30
         )
         
-        # Подробный вывод ошибки если есть
         if response.status_code != 200:
             error_text = response.text
             print(f"Groq API Error Response: {error_text}")
-            
-            # Пытаемся распарсить ошибку
-            try:
-                error_json = response.json()
-                if 'error' in error_json:
-                    error_text = error_json['error'].get('message', error_text)
-            except:
-                pass
-                
-            raise Exception(f"Groq API Error {response.status_code}: {error_text}")
+            raise Exception(f"Groq API Error {response.status_code}")
         
         result = response.json()
         
@@ -111,16 +102,16 @@ def ask_groq(messages, model):
         return result['choices'][0]['message']['content']
         
     except requests.exceptions.Timeout:
-        raise Exception("Groq API timeout - request took too long")
+        raise Exception("Groq API timeout")
     except requests.exceptions.ConnectionError:
         raise Exception("Groq API connection error")
     except requests.exceptions.RequestException as e:
-        raise Exception(f"Groq API request failed: {str(e)}")
+        raise Exception(f"Groq API error: {str(e)}")
 
 @bot.message_handler(commands=['start', 'help'])
 def start(message):
     text = (
-        "🤖 Groq Bot with Llama 3.1 70B\n\n"
+        "Groq Bot - 7 Free Models\n\n"
         f"Current model: {current_model}\n\n"
         "Commands:\n"
         "/models - list all models\n"
@@ -133,9 +124,9 @@ def start(message):
 
 @bot.message_handler(commands=['models'])
 def show_models(message):
-    text = "Available models:\n\n"
+    text = "Available Groq Models (free):\n\n"
     for num, model_info in MODELS.items():
-        mark = "✅" if model_info['name'] == current_model else "•"
+        mark = ">>" if model_info['name'] == current_model else "  "
         text += f"{mark} {num}. {model_info['desc']}\n"
     
     text += "\nTo select: /model [number]\n"
@@ -156,9 +147,9 @@ def set_model(message):
         num = parts[1]
         if num in MODELS:
             current_model = MODELS[num]['name']
-            bot.reply_to(message, f"✅ Model changed to: {MODELS[num]['desc']}")
+            bot.reply_to(message, f"Model changed to: {MODELS[num]['desc']}")
         else:
-            bot.reply_to(message, f"❌ Invalid number. Use 1-{len(MODELS)}")
+            bot.reply_to(message, f"Invalid number. Use 1-{len(MODELS)}")
     
     except Exception as e:
         bot.reply_to(message, f"Error: {str(e)[:100]}")
@@ -168,7 +159,7 @@ def clear_history(message):
     user_id = message.from_user.id
     if user_id in user_history:
         user_history[user_id] = []
-        bot.reply_to(message, "🧹 History cleared!")
+        bot.reply_to(message, "History cleared!")
     else:
         bot.reply_to(message, "History is already empty.")
 
@@ -202,16 +193,16 @@ def chat(message):
         
     except Exception as e:
         error_text = str(e)
-        print(f"Error in chat: {error_text}")  # Логируем ошибку
-        bot.reply_to(message, f"❌ {error_text[:200]}")
+        print(f"Error in chat: {error_text}")
+        bot.reply_to(message, f"Error: {error_text[:200]}")
 
 print("=" * 60)
-print("🚀 BOT STARTING")
+print("GROQ BOT STARTING")
 print("=" * 60)
-print(f"📱 Telegram Token: {TELEGRAM_TOKEN[:10]}...{TELEGRAM_TOKEN[-5:]}")
-print(f"🔑 Groq API Key: {GROQ_API_KEY[:10]}...{GROQ_API_KEY[-5:]}")
-print(f"🤖 Current Model: {current_model}")
-print(f"📡 API URL: {GROQ_API_URL}")
+print(f"Telegram Token: {TELEGRAM_TOKEN[:10]}...")
+print(f"Groq API Key: {GROQ_API_KEY[:10]}...")
+print(f"Current Model: {current_model}")
+print(f"Available Models: {len(MODELS)}")
 print("=" * 60)
 
 # Запускаем бота
@@ -219,7 +210,7 @@ if __name__ == "__main__":
     try:
         bot.infinity_polling()
     except KeyboardInterrupt:
-        print("\n👋 Bot stopped by user")
+        print("\nBot stopped by user")
     except Exception as e:
-        print(f"\n❌ Critical error: {e}")
+        print(f"\nCritical error: {e}")
         time.sleep(5)
