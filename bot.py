@@ -151,7 +151,7 @@ webserver_thread.start()
 def ask_groq(messages, model):
     """Запрос к Groq API"""
     if not GROQ_API_KEY:
-        return "⚠️ Groq API key not set!"
+        return "Error: Groq API key not set!"
     
     headers = {
         "Authorization": f"Bearer {GROQ_API_KEY}",
@@ -178,18 +178,18 @@ def ask_groq(messages, model):
         response = requests.post(GROQ_API_URL, headers=headers, json=data, timeout=30)
         
         if response.status_code != 200:
-            return f"⚠️ Groq API Error: {response.status_code}"
+            return f"Groq API Error: {response.status_code}"
         
         result = response.json()
         return result['choices'][0]['message']['content']
         
     except Exception as e:
-        return f"⚠️ Groq Error: {str(e)[:100]}"
+        return f"Groq Error: {str(e)[:100]}"
 
 def ask_huggingface(messages, model):
     """Запрос к Hugging Face API"""
     if not HUGGINGFACE_API_KEY:
-        return "⚠️ Hugging Face API key not set!"
+        return "Error: Hugging Face API key not set!"
     
     API_URL = f"https://api-inference.huggingface.co/models/{model}"
     headers = {"Authorization": f"Bearer {HUGGINGFACE_API_KEY}"}
@@ -210,9 +210,9 @@ def ask_huggingface(messages, model):
         response = requests.post(API_URL, headers=headers, json=data, timeout=60)
         
         if response.status_code == 503:
-            return "⚠️ Model is loading on Hugging Face. Please try again in 10 seconds."
+            return "Model is loading on Hugging Face. Please try again in 10 seconds."
         elif response.status_code != 200:
-            return f"⚠️ HF API Error: {response.status_code}"
+            return f"HF API Error: {response.status_code}"
         
         result = response.json()
         
@@ -227,55 +227,55 @@ def ask_huggingface(messages, model):
         return str(result)[:500]
         
     except requests.exceptions.Timeout:
-        return "⚠️ Hugging Face API timeout"
+        return "Hugging Face API timeout"
     except Exception as e:
-        return f"⚠️ HF Error: {str(e)[:100]}"
+        return f"HF Error: {str(e)[:100]}"
 
 @bot.message_handler(commands=['start', 'help'])
 def start(message):
     text = (
-        "🤖 FREE AI BOT - 40 MODELS\n"
-        "==========================\n\n"
-        f"✨ Current: {MODELS['1']['desc']}\n\n"
-        "📋 Commands:\n"
-        "• /models - list all 40 FREE models\n"
-        "• /model [1-40] - select model by number\n"
-        "• /clear - clear history\n"
-        "• /help - this menu\n\n"
-        "🔥 ALL MODELS ARE 100% FREE!\n"
-        "💎 No payment required!"
+        "FREE AI BOT - 40 MODELS\n"
+        "========================\n\n"
+        f"Current: {MODELS['1']['desc']}\n\n"
+        "Commands:\n"
+        "/models - list all 40 FREE models\n"
+        "/model [1-40] - select model by number\n"
+        "/clear - clear history\n"
+        "/help - this menu\n\n"
+        "ALL MODELS ARE 100% FREE!\n"
+        "No payment required!"
     )
     bot.reply_to(message, text)
 
 @bot.message_handler(commands=['models'])
 def show_models(message):
-    text = "📊 *ALL FREE MODELS (1=best, 40=fastest):*\n"
-    text += "=======================================\n\n"
+    text = "ALL FREE MODELS (1=best, 40=fastest):\n"
+    text += "====================================\n\n"
     
     for num in range(1, 21):
         num_str = str(num)
         model_info = MODELS[num_str]
         if model_info['name'] == current_model:
-            text += f"✅ *{num_str}.* {model_info['desc']}*\n"
+            text += f">> {num_str}. {model_info['desc']} (active)\n"
         else:
             text += f"   {num_str}. {model_info['desc']}\n"
     
-    bot.send_message(message.chat.id, text, parse_mode="Markdown")
+    bot.send_message(message.chat.id, text)
     
-    text2 = "📊 *FREE MODELS 21-40:*\n"
-    text2 += "=======================\n\n"
+    text2 = "FREE MODELS 21-40:\n"
+    text2 += "=================\n\n"
     for num in range(21, 41):
         num_str = str(num)
         model_info = MODELS[num_str]
         if model_info['name'] == current_model:
-            text2 += f"✅ *{num_str}.* {model_info['desc']}*\n"
+            text2 += f">> {num_str}. {model_info['desc']} (active)\n"
         else:
             text2 += f"   {num_str}. {model_info['desc']}\n"
     
     text2 += "\nSelect: /model [number]\n"
     text2 += "Example: /model 1 for Llama 3.3"
     
-    bot.send_message(message.chat.id, text2, parse_mode="Markdown")
+    bot.send_message(message.chat.id, text2)
 
 @bot.message_handler(commands=['model'])
 def set_model(message):
@@ -288,21 +288,21 @@ def set_model(message):
             current_api = MODELS[num]['api']
             bot.reply_to(
                 message, 
-                f"✅ Now using: {MODELS[num]['desc']}\n📡 API: {current_api}"
+                f"Now using: {MODELS[num]['desc']}\nAPI: {current_api}"
             )
         else:
-            bot.reply_to(message, f"❌ Invalid number. Use 1-{len(MODELS)}")
+            bot.reply_to(message, f"Invalid number. Use 1-{len(MODELS)}")
     except:
-        bot.reply_to(message, "❌ Use: /model [number]")
+        bot.reply_to(message, "Use: /model [number]")
 
 @bot.message_handler(commands=['clear'])
 def clear_history(message):
     user_id = message.from_user.id
     if user_id in user_history:
         user_history[user_id] = []
-        bot.reply_to(message, "🧹 History cleared!")
+        bot.reply_to(message, "History cleared!")
     else:
-        bot.reply_to(message, "📭 History is already empty.")
+        bot.reply_to(message, "History is already empty.")
 
 @bot.message_handler(func=lambda m: True)
 def chat(message):
@@ -324,26 +324,26 @@ def chat(message):
         else:  # huggingface
             answer = ask_huggingface(user_history[user_id], current_model)
         
-        if not answer.startswith("⚠️"):
+        if not answer.startswith("Error:"):
             user_history[user_id].append({"role": "assistant", "content": answer})
         
         bot.reply_to(message, answer)
         
     except Exception as e:
-        bot.reply_to(message, f"❌ Error: {str(e)[:100]}")
+        bot.reply_to(message, f"Error: {str(e)[:100]}")
 
 print("=" * 70)
-print("🤖 FREE AI BOT - 40 MODELS")
+print("FREE AI BOT - 40 MODELS")
 print("=" * 70)
-print(f"📱 Telegram: {'✅' if TELEGRAM_TOKEN else '❌'}")
-print(f"⚡ Groq: {'✅' if GROQ_API_KEY else '❌'}")
-print(f"🤗 Hugging Face: {'✅' if HUGGINGFACE_API_KEY else '❌'}")
-print(f"🎯 Current: {MODELS['1']['desc']}")
-print(f"📊 Total FREE models: {len(MODELS)}")
+print(f"Telegram: {'OK' if TELEGRAM_TOKEN else 'MISSING'}")
+print(f"Groq: {'OK' if GROQ_API_KEY else 'MISSING'}")
+print(f"Hugging Face: {'OK' if HUGGINGFACE_API_KEY else 'MISSING'}")
+print(f"Current: {MODELS['1']['desc']}")
+print(f"Total FREE models: {len(MODELS)}")
 print("=" * 70)
-print("✅ ALL MODELS ARE 100% FREE!")
-print("✅ Groq models 1-11: Llama, Mixtral, Gemma, Qwen")
-print("✅ Hugging Face models 12-40: Phi, Saiga, Falcon, Bloom, etc.")
+print("ALL MODELS ARE 100% FREE!")
+print("Groq models 1-11: Llama, Mixtral, Gemma, Qwen")
+print("Hugging Face models 12-40: Phi, Saiga, Falcon, Bloom, etc.")
 print("=" * 70)
 
 if __name__ == "__main__":
@@ -352,4 +352,4 @@ if __name__ == "__main__":
         time.sleep(1)
         bot.infinity_polling(timeout=60)
     except KeyboardInterrupt:
-        print("\n👋 Bot stopped by user")
+        print("\nBot stopped by user")
