@@ -6,45 +6,39 @@ import time
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from dotenv import load_dotenv
 
-# Загружаем переменные окружения (для локальной разработки)
+# Загружаем переменные окружения
 load_dotenv()
 
 # Токены из переменных окружения
 TELEGRAM_TOKEN = os.environ.get('TELEGRAM_TOKEN')
 GROQ_API_KEY = os.environ.get('GROQ_API_KEY')
-DEEPSEEK_API_KEY = os.environ.get('DEEPSEEK_API_KEY')
 
 # Проверка токенов
 if not TELEGRAM_TOKEN:
     print("ERROR: TELEGRAM_TOKEN not set!")
     exit(1)
 
-# URL для API
+if not GROQ_API_KEY:
+    print("ERROR: GROQ_API_KEY not set!")
+    exit(1)
+
+# URL для Groq API
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
-DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"
 
 # Инициализация бота
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
-# Модели с указанием API
+# Модели Groq (проверенные рабочие)
 MODELS = {
-    # Groq модели (бесплатные)
-    '1': {'name': 'llama-3.1-8b-instant', 'api': 'groq', 'desc': 'Llama 3.1 8B (fast)'},
-    '2': {'name': 'llama-3.1-70b-versatile', 'api': 'groq', 'desc': 'Llama 3.1 70B (powerful)'},
-    '3': {'name': 'mixtral-8x7b-32768', 'api': 'groq', 'desc': 'Mixtral 8x7B'},
-    '4': {'name': 'gemma2-9b-it', 'api': 'groq', 'desc': 'Gemma 2 9B (Google)'},
-    '5': {'name': 'deepseek-r1-distill-llama-70b', 'api': 'groq', 'desc': 'DeepSeek R1 (reasoning)'},
-    # Qwen через Groq
-    '6': {'name': 'qwen-2.5-72b', 'api': 'groq', 'desc': 'Qwen 2.5 72B'},
-    '7': {'name': 'qwen-2.5-32b', 'api': 'groq', 'desc': 'Qwen 2.5 32B'},
-    # DeepSeek модели (платные, нужен ключ)
-    '8': {'name': 'deepseek-chat', 'api': 'deepseek', 'desc': 'DeepSeek Chat (standard)'},
-    '9': {'name': 'deepseek-coder', 'api': 'deepseek', 'desc': 'DeepSeek Coder'},
+    '1': {'name': 'llama-3.1-8b-instant', 'desc': 'Llama 3.1 8B (fast)'},
+    '2': {'name': 'llama-3.1-70b-versatile', 'desc': 'Llama 3.1 70B (powerful)'},
+    '3': {'name': 'mixtral-8x7b-32768', 'desc': 'Mixtral 8x7B'},
+    '4': {'name': 'gemma2-9b-it', 'desc': 'Gemma 2 9B'},
+    '5': {'name': 'qwen-2.5-72b', 'desc': 'Qwen 2.5 72B'},
 }
 
 # Модель по умолчанию - Llama 3.1 70B
 current_model = 'llama-3.1-70b-versatile'
-current_api = 'groq'
 user_history = {}
 
 # Веб-сервер для Render
@@ -68,69 +62,66 @@ webserver_thread = threading.Thread(target=run_webserver, daemon=True)
 webserver_thread.start()
 
 def ask_groq(messages, model):
-    """Запрос к Groq API"""
-    if not GROQ_API_KEY:
-        raise Exception("Groq API key not set!")
-    
+    """Запрос к Groq API через requests"""
     headers = {
         "Authorization": f"Bearer {GROQ_API_KEY}",
         "Content-Type": "application/json"
     }
     
+    # Правильный формат для Groq API
     data = {
         "model": model,
         "messages": messages,
         "temperature": 0.7,
-        "max_tokens": 2048
-    }
-    
-    try:
-        response = requests.post(GROQ_API_URL, headers=headers, json=data, timeout=30)
-        response.raise_for_status()
-        result = response.json()
-        return result['choices'][0]['message']['content']
-    except requests.exceptions.Timeout:
-        raise Exception("Groq API timeout")
-    except requests.exceptions.RequestException as e:
-        raise Exception(f"Groq API error: {str(e)}")
-
-def ask_deepseek(messages, model):
-    """Запрос к официальному API DeepSeek"""
-    if not DEEPSEEK_API_KEY:
-        raise Exception("DeepSeek API key not set in Environment Variables")
-    
-    headers = {
-        "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
-        "Content-Type": "application/json"
-    }
-    
-    data = {
-        "model": model,
-        "messages": messages,
-        "temperature": 0.7,
-        "max_tokens": 2048,
+        "max_tokens": 1024,
+        "top_p": 1,
         "stream": False
     }
     
     try:
-        response = requests.post(DEEPSEEK_API_URL, headers=headers, json=data, timeout=30)
-        response.raise_for_status()
+        print(f"Sending request to Groq with model: {model}")
+        
+        response = requests.post(
+            GROQ_API_URL, 
+            headers=headers, 
+            json=data, 
+            timeout=30
+        )
+        
+        # Подробный вывод ошибки если есть
+        if response.status_code != 200:
+            error_text = response.text
+            print(f"Groq API Error Response: {error_text}")
+            
+            # Пытаемся распарсить ошибку
+            try:
+                error_json = response.json()
+                if 'error' in error_json:
+                    error_text = error_json['error'].get('message', error_text)
+            except:
+                pass
+                
+            raise Exception(f"Groq API Error {response.status_code}: {error_text}")
+        
         result = response.json()
+        
+        if 'choices' not in result or len(result['choices']) == 0:
+            raise Exception("Invalid response format from Groq API")
+            
         return result['choices'][0]['message']['content']
+        
     except requests.exceptions.Timeout:
-        raise Exception("DeepSeek API timeout")
+        raise Exception("Groq API timeout - request took too long")
+    except requests.exceptions.ConnectionError:
+        raise Exception("Groq API connection error")
     except requests.exceptions.RequestException as e:
-        raise Exception(f"DeepSeek API error: {str(e)}")
+        raise Exception(f"Groq API request failed: {str(e)}")
 
 @bot.message_handler(commands=['start', 'help'])
 def start(message):
     text = (
-        "Groq + DeepSeek Bot\n\n"
-        "Available APIs:\n"
-        "- Groq (free) - Llama, Mixtral, Gemma, Qwen\n"
-        "- DeepSeek (paid) - standard DeepSeek\n\n"
-        f"Current model: {current_model}\n"
-        f"Current API: {current_api}\n\n"
+        "🤖 Groq Bot with Llama 3.1 70B\n\n"
+        f"Current model: {current_model}\n\n"
         "Commands:\n"
         "/models - list all models\n"
         "/model [number] - select model\n"
@@ -143,56 +134,31 @@ def start(message):
 @bot.message_handler(commands=['models'])
 def show_models(message):
     text = "Available models:\n\n"
-    
-    # Groq models
-    text += "GROQ (free):\n"
     for num, model_info in MODELS.items():
-        if model_info['api'] == 'groq':
-            mark = ">>" if model_info['name'] == current_model else "  "
-            text += f"{mark} {num}. {model_info['desc']}\n"
+        mark = "✅" if model_info['name'] == current_model else "•"
+        text += f"{mark} {num}. {model_info['desc']}\n"
     
-    text += "\nDEEPSEEK (key required):\n"
-    for num, model_info in MODELS.items():
-        if model_info['api'] == 'deepseek':
-            mark = ">>" if model_info['name'] == current_model else "  "
-            status = " (available)" if DEEPSEEK_API_KEY else " (no key)"
-            text += f"{mark} {num}. {model_info['desc']}{status}\n"
-    
-    text += "\nSelect model: /model [number]\n"
+    text += "\nTo select: /model [number]\n"
     text += "Example: /model 2 for Llama 70B"
     
     bot.reply_to(message, text)
 
 @bot.message_handler(commands=['model'])
 def set_model(message):
-    global current_model, current_api
+    global current_model
     
     try:
         parts = message.text.split()
         if len(parts) < 2:
-            bot.reply_to(message, "Specify model number. Example: /model 2")
+            bot.reply_to(message, "Please specify model number. Example: /model 2")
             return
         
         num = parts[1]
         if num in MODELS:
-            # Check if DeepSeek API is available
-            if MODELS[num]['api'] == 'deepseek' and not DEEPSEEK_API_KEY:
-                bot.reply_to(message, 
-                    "DeepSeek API key not configured!\n"
-                    "Add DEEPSEEK_API_KEY to Environment Variables")
-                return
-            
             current_model = MODELS[num]['name']
-            current_api = MODELS[num]['api']
-            
-            response_text = (
-                f"Model changed to:\n"
-                f"{MODELS[num]['desc']}\n"
-                f"API: {current_api}"
-            )
-            bot.reply_to(message, response_text)
+            bot.reply_to(message, f"✅ Model changed to: {MODELS[num]['desc']}")
         else:
-            bot.reply_to(message, f"Invalid number. Use 1-{len(MODELS)}")
+            bot.reply_to(message, f"❌ Invalid number. Use 1-{len(MODELS)}")
     
     except Exception as e:
         bot.reply_to(message, f"Error: {str(e)[:100]}")
@@ -202,7 +168,7 @@ def clear_history(message):
     user_id = message.from_user.id
     if user_id in user_history:
         user_history[user_id] = []
-        bot.reply_to(message, "History cleared!")
+        bot.reply_to(message, "🧹 History cleared!")
     else:
         bot.reply_to(message, "History is already empty.")
 
@@ -210,53 +176,50 @@ def clear_history(message):
 def chat(message):
     user_id = message.from_user.id
     
-    # Initialize history for new user
+    # Инициализируем историю для нового пользователя
     if user_id not in user_history:
         user_history[user_id] = []
     
-    # Add user message
+    # Добавляем сообщение пользователя
     user_history[user_id].append({"role": "user", "content": message.text})
     
-    # Limit history (last 20 messages)
+    # Ограничиваем историю (последние 20 сообщений)
     if len(user_history[user_id]) > 20:
         user_history[user_id] = user_history[user_id][-20:]
     
     try:
-        # Send typing indicator
+        # Показываем что бот печатает
         bot.send_chat_action(message.chat.id, 'typing')
         
-        # Choose API
-        if current_api == 'groq':
-            answer = ask_groq(user_history[user_id], current_model)
-        else:  # deepseek
-            answer = ask_deepseek(user_history[user_id], current_model)
+        # Отправляем запрос в Groq
+        answer = ask_groq(user_history[user_id], current_model)
         
-        # Save answer
+        # Сохраняем ответ
         user_history[user_id].append({"role": "assistant", "content": answer})
         
-        # Send to user
+        # Отправляем пользователю
         bot.reply_to(message, answer)
         
     except Exception as e:
         error_text = str(e)
-        bot.reply_to(message, f"Error: {error_text[:200]}")
+        print(f"Error in chat: {error_text}")  # Логируем ошибку
+        bot.reply_to(message, f"❌ {error_text[:200]}")
 
-print("=" * 50)
-print("BOT STARTING")
-print("=" * 50)
-print(f"Telegram: {TELEGRAM_TOKEN[:10]}...")
-print(f"Groq API: {'YES' if GROQ_API_KEY else 'NO'}")
-print(f"DeepSeek API: {'YES' if DEEPSEEK_API_KEY else 'NO'}")
-print(f"Current model: {current_model}")
-print(f"Current API: {current_api}")
-print("=" * 50)
+print("=" * 60)
+print("🚀 BOT STARTING")
+print("=" * 60)
+print(f"📱 Telegram Token: {TELEGRAM_TOKEN[:10]}...{TELEGRAM_TOKEN[-5:]}")
+print(f"🔑 Groq API Key: {GROQ_API_KEY[:10]}...{GROQ_API_KEY[-5:]}")
+print(f"🤖 Current Model: {current_model}")
+print(f"📡 API URL: {GROQ_API_URL}")
+print("=" * 60)
 
 # Запускаем бота
 if __name__ == "__main__":
     try:
         bot.infinity_polling()
     except KeyboardInterrupt:
-        print("\nBot stopped by user")
+        print("\n👋 Bot stopped by user")
     except Exception as e:
-        print(f"\nCritical error: {e}")
+        print(f"\n❌ Critical error: {e}")
         time.sleep(5)
