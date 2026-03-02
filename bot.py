@@ -3,6 +3,7 @@ import requests
 import os
 import threading
 import time
+import sys
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from dotenv import load_dotenv
 
@@ -16,11 +17,11 @@ GROQ_API_KEY = os.environ.get('GROQ_API_KEY')
 # Проверка токенов
 if not TELEGRAM_TOKEN:
     print("ERROR: TELEGRAM_TOKEN not set!")
-    exit(1)
+    sys.exit(1)
 
 if not GROQ_API_KEY:
     print("ERROR: GROQ_API_KEY not set!")
-    exit(1)
+    sys.exit(1)
 
 # URL для Groq API
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
@@ -54,10 +55,13 @@ class HealthCheckHandler(BaseHTTPRequestHandler):
         pass
 
 def run_webserver():
-    port = int(os.environ.get('PORT', 10000))
-    server = HTTPServer(('0.0.0.0', port), HealthCheckHandler)
-    print(f"Web server started on port {port}")
-    server.serve_forever()
+    try:
+        port = int(os.environ.get('PORT', 10000))
+        server = HTTPServer(('0.0.0.0', port), HealthCheckHandler)
+        print(f"Web server started on port {port}")
+        server.serve_forever()
+    except Exception as e:
+        print(f"Web server error: {e}")
 
 # Запускаем веб-сервер в отдельном потоке
 webserver_thread = threading.Thread(target=run_webserver, daemon=True)
@@ -70,9 +74,18 @@ def ask_groq(messages, model):
         "Content-Type": "application/json"
     }
     
+    # Проверяем и очищаем сообщения
+    clean_messages = []
+    for msg in messages:
+        if isinstance(msg, dict) and 'role' in msg and 'content' in msg:
+            clean_messages.append({
+                'role': msg['role'],
+                'content': str(msg['content'])[:4000]  # Ограничиваем длину
+            })
+    
     data = {
         "model": model,
-        "messages": messages,
+        "messages": clean_messages,
         "temperature": 0.7,
         "max_tokens": 1024,
         "top_p": 1,
@@ -80,7 +93,7 @@ def ask_groq(messages, model):
     }
     
     try:
-        print(f"Sending request to Groq with model: {model}")
+        print(f"Request to Groq with model: {model}")
         
         response = requests.post(
             GROQ_API_URL, 
@@ -91,22 +104,31 @@ def ask_groq(messages, model):
         
         if response.status_code != 200:
             error_text = response.text
-            print(f"Groq API Error Response: {error_text}")
-            raise Exception(f"Groq API Error {response.status_code}")
+            print(f"Groq API Error: {error_text}")
+            
+            try:
+                error_json = response.json()
+                if 'error' in error_json:
+                    error_message = error_json['error'].get('message', 'Unknown error')
+                    return f"Error from Groq: {error_message}"
+            except:
+                pass
+            
+            return f"Error {response.status_code} from Groq API"
         
         result = response.json()
         
         if 'choices' not in result or len(result['choices']) == 0:
-            raise Exception("Invalid response format from Groq API")
+            return "Error: Invalid response from Groq API"
             
         return result['choices'][0]['message']['content']
         
     except requests.exceptions.Timeout:
-        raise Exception("Groq API timeout")
+        return "Error: Groq API timeout"
     except requests.exceptions.ConnectionError:
-        raise Exception("Groq API connection error")
-    except requests.exceptions.RequestException as e:
-        raise Exception(f"Groq API error: {str(e)}")
+        return "Error: Cannot connect to Groq API"
+    except Exception as e:
+        return f"Error: {str(e)[:200]}"
 
 @bot.message_handler(commands=['start', 'help'])
 def start(message):
@@ -185,30 +207,38 @@ def chat(message):
         # Отправляем запрос в Groq
         answer = ask_groq(user_history[user_id], current_model)
         
-        # Сохраняем ответ
-        user_history[user_id].append({"role": "assistant", "content": answer})
+        # Сохраняем ответ если это не ошибка
+        if not answer.startswith("Error:"):
+            user_history[user_id].append({"role": "assistant", "content": answer})
         
         # Отправляем пользователю
         bot.reply_to(message, answer)
         
     except Exception as e:
         error_text = str(e)
-        print(f"Error in chat: {error_text}")
+        print(f"Chat error: {error_text}")
         bot.reply_to(message, f"Error: {error_text[:200]}")
 
 print("=" * 60)
 print("GROQ BOT STARTING")
 print("=" * 60)
-print(f"Telegram Token: {TELEGRAM_TOKEN[:10]}...")
-print(f"Groq API Key: {GROQ_API_KEY[:10]}...")
+print(f"Telegram Token: {TELEGRAM_TOKEN[:10]}...{TELEGRAM_TOKEN[-5:]}")
+print(f"Groq API Key: {GROQ_API_KEY[:10]}...{GROQ_API_KEY[-5:]}")
 print(f"Current Model: {current_model}")
 print(f"Available Models: {len(MODELS)}")
 print("=" * 60)
+print("Bot is ready! Close this terminal to avoid 409 errors.")
+print("=" * 60)
 
-# Запускаем бота
+# Запускаем бота с обработкой ошибок
 if __name__ == "__main__":
     try:
-        bot.infinity_polling()
+        # Удаляем вебхук если был
+        bot.remove_webhook()
+        time.sleep(1)
+        
+        # Запускаем polling
+        bot.infinity_polling(timeout=60, long_polling_timeout=60)
     except KeyboardInterrupt:
         print("\nBot stopped by user")
     except Exception as e:
