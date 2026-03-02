@@ -7,52 +7,56 @@ import sys
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from dotenv import load_dotenv
 
-# Загружаем переменные окружения
+# Загружаем переменные окружения (только для локальной разработки)
 load_dotenv()
 
-# Токены
+# Токены из переменных окружения Render
 TELEGRAM_TOKEN = os.environ.get('TELEGRAM_TOKEN')
 GROQ_API_KEY = os.environ.get('GROQ_API_KEY')
-OPENROUTER_API_KEY = os.environ.get('OPENROUTER_API_KEY')
 
 # Проверка токенов
 if not TELEGRAM_TOKEN:
     print("ERROR: TELEGRAM_TOKEN not set!")
+    print("Please add TELEGRAM_TOKEN to Environment Variables in Render")
     sys.exit(1)
 
 if not GROQ_API_KEY:
     print("ERROR: GROQ_API_KEY not set!")
+    print("Please add GROQ_API_KEY to Environment Variables in Render")
     sys.exit(1)
 
-if not OPENROUTER_API_KEY:
-    print("ERROR: OPENROUTER_API_KEY not set!")
-    sys.exit(1)
-
-# URL для API
+# URL для Groq API
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
-OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 # Инициализация бота
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
-# ТОЛЬКО 100% РАБОЧИЕ МОДЕЛИ
+# ВСЕ АКТУАЛЬНЫЕ МОДЕЛИ GROQ (2026)
 MODELS = {
-    # GROQ API (проверенные рабочие)
-    '1': {'name': 'llama-3.3-70b-versatile', 'api': 'groq', 'desc': 'Llama 3.3 70B (Groq) - ЛУЧШАЯ'},
-    '2': {'name': 'llama-3.1-8b-instant', 'api': 'groq', 'desc': 'Llama 3.1 8B (Groq) - быстрая'},
-    '3': {'name': 'mixtral-8x7b-32768', 'api': 'groq', 'desc': 'Mixtral 8x7B (Groq) - мощная'},
-    '4': {'name': 'gemma2-9b-it', 'api': 'groq', 'desc': 'Gemma 2 9B (Groq) - Google'},
+    # Llama family
+    '1': {'name': 'llama-3.3-70b-versatile', 'desc': 'Llama 3.3 70B - САМАЯ НОВАЯ'},
+    '2': {'name': 'llama-3.1-8b-instant', 'desc': 'Llama 3.1 8B - БЫСТРАЯ'},
+    '3': {'name': 'llama-3.2-3b-preview', 'desc': 'Llama 3.2 3B - СВЕРХБЫСТРАЯ'},
+    '4': {'name': 'llama-3.2-1b-preview', 'desc': 'Llama 3.2 1B - МИКРО'},
+    '5': {'name': 'llama-guard-3-8b', 'desc': 'Llama Guard 3 8B - БЕЗОПАСНОСТЬ'},
     
-    # OPENROUTER API (проверенные бесплатные)
-    '5': {'name': 'meta-llama/llama-3.2-3b-instruct', 'api': 'openrouter', 'desc': 'Llama 3.2 3B (OpenRouter)'},
-    '6': {'name': 'mistralai/mistral-7b-instruct', 'api': 'openrouter', 'desc': 'Mistral 7B (OpenRouter)'},
-    '7': {'name': 'google/gemma-2-2b-it', 'api': 'openrouter', 'desc': 'Gemma 2 2B (OpenRouter)'},
-    '8': {'name': 'microsoft/phi-3-mini-128k-instruct', 'api': 'openrouter', 'desc': 'Phi-3 Mini (OpenRouter)'},
+    # Mixtral
+    '6': {'name': 'mixtral-8x7b-32768', 'desc': 'Mixtral 8x7B - МОЩНАЯ'},
+    
+    # Gemma family
+    '7': {'name': 'gemma2-9b-it', 'desc': 'Gemma 2 9B - GOOGLE'},
+    '8': {'name': 'gemma-7b-it', 'desc': 'Gemma 7B - GOOGLE'},
+    
+    # Qwen family
+    '9': {'name': 'qwen-2.5-32b', 'desc': 'Qwen 2.5 32B'},
+    '10': {'name': 'qwen-2.5-72b', 'desc': 'Qwen 2.5 72B'},
+    
+    # DeepSeek
+    '11': {'name': 'deepseek-r1-distill-llama-70b', 'desc': 'DeepSeek R1'},
 }
 
-# Модель по умолчанию - Llama 3.3 через Groq
+# Модель по умолчанию - Llama 3.3
 current_model = 'llama-3.3-70b-versatile'
-current_api = 'groq'
 user_history = {}
 
 # Веб-сервер для Render
@@ -74,8 +78,10 @@ def run_webserver():
     except Exception as e:
         print(f"Web server error: {e}")
 
+# Запускаем веб-сервер в отдельном потоке
 webserver_thread = threading.Thread(target=run_webserver, daemon=True)
 webserver_thread.start()
+print("Web server thread started")
 
 def ask_groq(messages, model):
     """Запрос к Groq API"""
@@ -84,6 +90,7 @@ def ask_groq(messages, model):
         "Content-Type": "application/json"
     }
     
+    # Берем последние 10 сообщений для контекста
     clean_messages = []
     for msg in messages[-10:]:
         if isinstance(msg, dict) and 'role' in msg and 'content' in msg:
@@ -101,162 +108,164 @@ def ask_groq(messages, model):
     }
     
     try:
-        print(f"Request to Groq with model: {model}")
-        response = requests.post(GROQ_API_URL, headers=headers, json=data, timeout=30)
+        print(f"Sending request to Groq with model: {model}")
+        
+        response = requests.post(
+            GROQ_API_URL, 
+            headers=headers, 
+            json=data, 
+            timeout=30
+        )
         
         if response.status_code != 200:
             error_text = response.text
             print(f"Groq API Error: {error_text}")
-            return f"Error: {error_text[:200]}"
+            
+            try:
+                error_json = response.json()
+                if 'error' in error_json:
+                    error_message = error_json['error'].get('message', 'Unknown error')
+                    return f"Error: {error_message}"
+            except:
+                pass
+            
+            return f"Error: API returned status {response.status_code}"
         
         result = response.json()
+        
+        if 'choices' not in result or len(result['choices']) == 0:
+            return "Error: Invalid response from API"
+            
         return result['choices'][0]['message']['content']
         
-    except Exception as e:
-        return f"Error: {str(e)[:200]}"
-
-def ask_openrouter(messages, model):
-    """Запрос к OpenRouter API"""
-    headers = {
-        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-        "Content-Type": "application/json",
-        "HTTP-Referer": "https://github.com/elozx2694-ui/telegram-bot",
-        "X-Title": "Telegram Bot"
-    }
-    
-    clean_messages = []
-    for msg in messages[-10:]:
-        if isinstance(msg, dict) and 'role' in msg and 'content' in msg:
-            clean_messages.append({
-                'role': msg['role'],
-                'content': str(msg['content'])[:2000]
-            })
-    
-    data = {
-        "model": model,
-        "messages": clean_messages,
-        "temperature": 0.7,
-        "max_tokens": 1024,
-        "top_p": 1
-    }
-    
-    try:
-        print(f"Request to OpenRouter with model: {model}")
-        response = requests.post(OPENROUTER_API_URL, headers=headers, json=data, timeout=30)
-        
-        if response.status_code != 200:
-            error_text = response.text
-            print(f"OpenRouter API Error: {error_text}")
-            return f"Error: {error_text[:200]}"
-        
-        result = response.json()
-        return result['choices'][0]['message']['content']
-        
+    except requests.exceptions.Timeout:
+        return "Error: API timeout - please try again"
+    except requests.exceptions.ConnectionError:
+        return "Error: Cannot connect to API - check your internet"
     except Exception as e:
         return f"Error: {str(e)[:200]}"
 
 @bot.message_handler(commands=['start', 'help'])
 def start(message):
     text = (
-        "🤖 WORKING MODELS BOT\n"
-        "====================\n\n"
-        f"Current: {current_model}\n"
-        f"API: {current_api}\n\n"
+        "🤖 GROQ BOT - 11 WORKING MODELS\n"
+        "===============================\n\n"
+        f"Current model: {current_model}\n\n"
         "Commands:\n"
-        "/models - list all working models\n"
-        "/model [num] - select model\n"
-        "/clear - clear history\n\n"
-        "All models are 100% working!"
+        "/models - list all models\n"
+        "/model [number] - select model\n"
+        "/clear - clear history\n"
+        "/help - this menu\n\n"
+        "Just send a message and I'll reply!"
     )
     bot.reply_to(message, text)
 
 @bot.message_handler(commands=['models'])
 def show_models(message):
-    text = "✅ 100% WORKING MODELS:\n"
-    text += "=====================\n\n"
+    text = "✅ GROQ MODELS (2026):\n"
+    text += "====================\n\n"
     
-    text += "GROQ API:\n"
-    for num in ['1', '2', '3', '4']:
-        model_info = MODELS[num]
-        mark = "✅" if model_info['name'] == current_model else "  "
-        text += f"{mark} {num}. {model_info['desc']}\n"
+    for num, model_info in MODELS.items():
+        if model_info['name'] == current_model:
+            text += f"✅ {num}. {model_info['desc']} (active)\n"
+        else:
+            text += f"   {num}. {model_info['desc']}\n"
     
-    text += "\nOPENROUTER API:\n"
-    for num in ['5', '6', '7', '8']:
-        model_info = MODELS[num]
-        mark = "✅" if model_info['name'] == current_model else "  "
-        text += f"{mark} {num}. {model_info['desc']}\n"
-    
-    text += "\nSelect: /model [number]\n"
+    text += "\nTo select: /model [number]\n"
     text += "Example: /model 1 for Llama 3.3"
     
     bot.reply_to(message, text)
 
 @bot.message_handler(commands=['model'])
 def set_model(message):
-    global current_model, current_api
+    global current_model
     
     try:
-        num = message.text.split()[1]
+        parts = message.text.split()
+        if len(parts) < 2:
+            bot.reply_to(message, "Please specify model number. Example: /model 1")
+            return
+        
+        num = parts[1]
         if num in MODELS:
             current_model = MODELS[num]['name']
-            current_api = MODELS[num]['api']
             bot.reply_to(message, f"✅ Now using: {MODELS[num]['desc']}")
         else:
-            bot.reply_to(message, f"Use 1-{len(MODELS)}")
-    except:
-        bot.reply_to(message, "Use: /model [number]")
+            bot.reply_to(message, f"Invalid number. Use 1-{len(MODELS)}")
+    
+    except Exception as e:
+        bot.reply_to(message, f"Error: {str(e)[:100]}")
 
 @bot.message_handler(commands=['clear'])
 def clear_history(message):
     user_id = message.from_user.id
     if user_id in user_history:
         user_history[user_id] = []
-    bot.reply_to(message, "History cleared!")
+        bot.reply_to(message, "History cleared!")
+    else:
+        bot.reply_to(message, "History is already empty.")
 
 @bot.message_handler(func=lambda m: True)
 def chat(message):
     user_id = message.from_user.id
     
+    # Инициализируем историю для нового пользователя
     if user_id not in user_history:
         user_history[user_id] = []
     
+    # Добавляем сообщение пользователя
     user_history[user_id].append({"role": "user", "content": message.text})
     
+    # Ограничиваем историю (последние 20 сообщений)
     if len(user_history[user_id]) > 20:
         user_history[user_id] = user_history[user_id][-20:]
     
     try:
+        # Показываем что бот печатает
         bot.send_chat_action(message.chat.id, 'typing')
         
-        if current_api == 'groq':
-            answer = ask_groq(user_history[user_id], current_model)
-        else:
-            answer = ask_openrouter(user_history[user_id], current_model)
+        # Отправляем запрос в Groq
+        answer = ask_groq(user_history[user_id], current_model)
         
+        # Сохраняем ответ если это не ошибка
         if not answer.startswith("Error:"):
             user_history[user_id].append({"role": "assistant", "content": answer})
         
+        # Отправляем пользователю
         bot.reply_to(message, answer)
         
     except Exception as e:
-        bot.reply_to(message, f"Error: {str(e)[:200]}")
+        error_text = str(e)
+        print(f"Chat error: {error_text}")
+        bot.reply_to(message, f"Error: {error_text[:200]}")
 
-print("=" * 60)
-print("🤖 100% WORKING MODELS BOT")
-print("=" * 60)
-print(f"Telegram: {TELEGRAM_TOKEN[:10]}...")
-print(f"Groq: {'✅' if GROQ_API_KEY else '❌'}")
-print(f"OpenRouter: {'✅' if OPENROUTER_API_KEY else '❌'}")
-print(f"Current: {current_model}")
-print("=" * 60)
-print("All 8 models are confirmed working!")
-print("=" * 60)
+print("=" * 70)
+print("🚀 GROQ BOT STARTING - 11 WORKING MODELS")
+print("=" * 70)
+print(f"📱 Telegram Token: {TELEGRAM_TOKEN[:10]}...{TELEGRAM_TOKEN[-5:]}")
+print(f"🔑 Groq API Key: {GROQ_API_KEY[:10]}...{GROQ_API_KEY[-5:]}")
+print(f"🤖 Current Model: {current_model}")
+print(f"📚 Total Models: {len(MODELS)}")
+print("=" * 70)
+print("✅ Models available:")
+for num, model_info in MODELS.items():
+    print(f"   {num}. {model_info['desc']}")
+print("=" * 70)
+print("Bot is ready! Close this terminal to avoid 409 errors.")
+print("=" * 70)
 
+# Запускаем бота с обработкой ошибок
 if __name__ == "__main__":
     try:
+        # Удаляем вебхук если был
         bot.remove_webhook()
         time.sleep(1)
-        bot.infinity_polling(timeout=60)
+        
+        # Запускаем polling
+        print("Starting bot polling...")
+        bot.infinity_polling(timeout=60, long_polling_timeout=60)
     except KeyboardInterrupt:
-        print("\nBot stopped")
+        print("\n👋 Bot stopped by user")
+    except Exception as e:
+        print(f"\n❌ Critical error: {e}")
+        time.sleep(5)
