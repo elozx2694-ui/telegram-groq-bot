@@ -41,7 +41,7 @@ MODELS = {
 }
 
 # Модель по умолчанию - Llama 3.1 70B
-current_model = 'llama-3.1-70b-versatile'
+current_model = 'qwen-2.5-72b'
 user_history = {}
 
 # Веб-сервер для Render
