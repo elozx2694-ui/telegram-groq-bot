@@ -42,9 +42,9 @@ MODELS = {
     '9': {'name': 'qwen-2.5-32b', 'api': 'groq'},
 }
 
-# Модель по умолчанию - обычный DeepSeek!
-current_model = 'deepseek-chat'
-current_api = 'deepseek'
+# Модель по умолчанию - мощная Llama через Groq!
+current_model = 'llama-3.1-70b-versatile'  
+current_api = 'groq
 
 user_history = {}
 
