@@ -31,17 +31,15 @@ bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
 # Модели Groq (все 7 рабочих)
 MODELS = {
-    '1': {'name': 'llama-3.1-8b-instant', 'desc': 'Llama 3.1 8B (fast)'},
-    '2': {'name': 'llama-3.1-70b-versatile', 'desc': 'Llama 3.1 70B (powerful)'},
+    '1': {'name': 'llama-3.3-70b-versatile', 'desc': 'Llama 3.3 70B (latest)'},
+    '2': {'name': 'llama-3.1-8b-instant', 'desc': 'Llama 3.1 8B (fast)'},
     '3': {'name': 'mixtral-8x7b-32768', 'desc': 'Mixtral 8x7B'},
-    '4': {'name': 'gemma2-9b-it', 'desc': 'Gemma 2 9B (Google)'},
-    '5': {'name': 'qwen-2.5-72b', 'desc': 'Qwen 2.5 72B'},
-    '6': {'name': 'qwen-2.5-32b', 'desc': 'Qwen 2.5 32B'},
-    '7': {'name': 'deepseek-r1-distill-llama-70b', 'desc': 'DeepSeek R1 (via Groq)'},
+    '4': {'name': 'gemma2-9b-it', 'desc': 'Gemma 2 9B'},
+    '5': {'name': 'deepseek-r1-distill-llama-70b', 'desc': 'DeepSeek R1'},
 }
 
 # Модель по умолчанию - Llama 3.1 70B
-current_model = 'qwen-2.5-72b'
+current_model = 'llama-3.3-70b-versatile'  # Самая новая Llama
 user_history = {}
 
 # Веб-сервер для Render
