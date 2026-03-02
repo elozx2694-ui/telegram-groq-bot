@@ -27,14 +27,28 @@ GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 # Инициализация бота
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
-# Доступные модели (только проверенные рабочие)
+# Доступные модели Groq (топовые на 2026)
 MODELS = {
-    '1': 'llama-3.1-8b-instant',  # Быстрая, всегда работает
-    '2': 'llama-3.1-70b-versatile', # Мощная, может быть платной
-    '3': 'mixtral-8x7b-32768',      # Популярная
+    '1': 'llama-3.1-8b-instant',        # Быстрая Llama
+    '2': 'llama-3.1-70b-versatile',     # Мощная Llama
+    '3': 'llama-3.2-1b-preview',        # Сверхбыстрая
+    '4': 'llama-3.2-3b-preview',        # Маленькая быстрая
+    '5': 'llama-3.2-11b-vision-preview', # С поддержкой зрения
+    '6': 'llama-3.2-90b-vision-preview', # Огромная мультимодальная
+    '7': 'mixtral-8x7b-32768',          # Mixtral (Mistral)
+    '8': 'gemma2-9b-it',                 # Gemma от Google
+    '9': 'gemma-7b-it',                  # Gemma старая
+    '10': 'deepseek-r1-distill-llama-70b', # DeepSeek (ТОП!)
+    '11': 'deepseek-r1-distill-qwen-32b',  # DeepSeek на Qwen
+    '12': 'qwen-2.5-32b',                 # Qwen 32B
+    '13': 'qwen-2.5-72b',                 # Qwen 72B (очень мощная)
+    '14': 'qwen-2.5-coder-32b',           # Для программирования
+    '15': 'mistral-saba-24b',             # Mistral свежая
 }
 
-current_model = 'llama-3.1-8b-instant'  # По умолчанию рабочая
+current_model = 'deepseek-r1-distill-llama-70b'  # Быстрая для начала
+# Или поставьте DeepSeek:
+# current_model = 'deepseek-r1-distill-llama-70b'
 
 user_history = {}
 
