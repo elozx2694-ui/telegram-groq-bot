@@ -1,3 +1,11 @@
+# Виртуальное окружение
+venv/
 .env
+
+# Кэш Python
 __pycache__/
 *.pyc
+
+# Редакторы
+.vscode/
+.idea/
