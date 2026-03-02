@@ -14,28 +14,38 @@ load_dotenv()
 TELEGRAM_TOKEN = os.environ.get('TELEGRAM_TOKEN')
 GROQ_API_KEY = os.environ.get('GROQ_API_KEY')
 HUGGINGFACE_API_KEY = os.environ.get('HUGGINGFACE_API_KEY')
+OPENROUTER_API_KEY = os.environ.get('OPENROUTER_API_KEY')
 
 # Проверка токенов
 if not TELEGRAM_TOKEN:
     print("ERROR: TELEGRAM_TOKEN not set!")
     sys.exit(1)
 
-if not GROQ_API_KEY:
-    print("ERROR: GROQ_API_KEY not set!")
-    sys.exit(1)
+# Проверяем какие API доступны
+GROQ_AVAILABLE = bool(GROQ_API_KEY)
+HF_AVAILABLE = bool(HUGGINGFACE_API_KEY)
+OR_AVAILABLE = bool(OPENROUTER_API_KEY)
 
-if not HUGGINGFACE_API_KEY:
-    print("ERROR: HUGGINGFACE_API_KEY not set!")
+print("=" * 70)
+print("API STATUS:")
+print(f"Groq API: {'✅ AVAILABLE' if GROQ_AVAILABLE else '❌ NOT SET'}")
+print(f"Hugging Face API: {'✅ AVAILABLE' if HF_AVAILABLE else '❌ NOT SET'}")
+print(f"OpenRouter API: {'✅ AVAILABLE' if OR_AVAILABLE else '❌ NOT SET'}")
+print("=" * 70)
+
+if not GROQ_AVAILABLE and not HF_AVAILABLE and not OR_AVAILABLE:
+    print("ERROR: No APIs available! Please set at least one API key.")
     sys.exit(1)
 
 # URL для API
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
+OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 # Инициализация бота
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
 # ==================== ТОЛЬКО БЕСПЛАТНЫЕ МОДЕЛИ ====================
-MODELS = {
+ALL_MODELS = {
     # ========== GROQ МОДЕЛИ (БЕСПЛАТНО) ==========
     '1': {'name': 'llama-3.3-70b-versatile', 'api': 'groq', 
           'desc': 'Llama 3.3 70B - САМАЯ НОВАЯ (Groq)'},
@@ -121,10 +131,26 @@ MODELS = {
            'desc': 'Hermes 2 Mixtral (HF)'},
 }
 
-# Модель по умолчанию - Llama 3.3 (лучшая бесплатная)
-current_model = 'llama-3.3-70b-versatile'
-current_api = 'groq'
+# Фильтруем модели по доступным API
+MODELS = {}
+for num, model_info in ALL_MODELS.items():
+    if model_info['api'] == 'groq' and GROQ_AVAILABLE:
+        MODELS[num] = model_info
+    elif model_info['api'] == 'huggingface' and HF_AVAILABLE:
+        MODELS[num] = model_info
+
+if not MODELS:
+    print("ERROR: No models available with current API keys!")
+    sys.exit(1)
+
+# Модель по умолчанию - первая доступная
+first_key = list(MODELS.keys())[0]
+current_model = MODELS[first_key]['name']
+current_api = MODELS[first_key]['api']
 user_history = {}
+
+print(f"Available models: {len(MODELS)}")
+print(f"Default model: {MODELS[first_key]['desc']}")
 
 # Веб-сервер для Render
 class HealthCheckHandler(BaseHTTPRequestHandler):
@@ -150,9 +176,6 @@ webserver_thread.start()
 
 def ask_groq(messages, model):
     """Запрос к Groq API"""
-    if not GROQ_API_KEY:
-        return "Error: Groq API key not set!"
-    
     headers = {
         "Authorization": f"Bearer {GROQ_API_KEY}",
         "Content-Type": "application/json"
@@ -189,7 +212,7 @@ def ask_groq(messages, model):
 def ask_huggingface(messages, model):
     """Запрос к Hugging Face API"""
     if not HUGGINGFACE_API_KEY:
-        return "Error: Hugging Face API key not set!"
+        return "Hugging Face API key not set!"
     
     API_URL = f"https://api-inference.huggingface.co/models/{model}"
     headers = {"Authorization": f"Bearer {HUGGINGFACE_API_KEY}"}
@@ -216,66 +239,46 @@ def ask_huggingface(messages, model):
         
         result = response.json()
         
-        # Разные форматы ответов
-        if isinstance(result, list):
-            if len(result) > 0:
-                if 'generated_text' in result[0]:
-                    return result[0]['generated_text']
-                elif isinstance(result[0], dict) and 'text' in result[0]:
-                    return result[0]['text']
+        if isinstance(result, list) and len(result) > 0:
+            if 'generated_text' in result[0]:
+                return result[0]['generated_text']
+            elif isinstance(result[0], dict) and 'text' in result[0]:
+                return result[0]['text']
         
         return str(result)[:500]
         
-    except requests.exceptions.Timeout:
-        return "Hugging Face API timeout"
     except Exception as e:
         return f"HF Error: {str(e)[:100]}"
 
 @bot.message_handler(commands=['start', 'help'])
 def start(message):
     text = (
-        "FREE AI BOT - 40 MODELS\n"
-        "========================\n\n"
-        f"Current: {MODELS['1']['desc']}\n\n"
+        "FREE AI BOT\n"
+        "===========\n\n"
+        f"Current: {MODELS[first_key]['desc']}\n"
+        f"Available APIs: {'Groq ' if GROQ_AVAILABLE else ''}{'HF ' if HF_AVAILABLE else ''}\n\n"
         "Commands:\n"
-        "/models - list all 40 FREE models\n"
-        "/model [1-40] - select model by number\n"
+        "/models - list available models\n"
+        "/model [number] - select model\n"
         "/clear - clear history\n"
         "/help - this menu\n\n"
-        "ALL MODELS ARE 100% FREE!\n"
-        "No payment required!"
+        f"Total models: {len(MODELS)}"
     )
     bot.reply_to(message, text)
 
 @bot.message_handler(commands=['models'])
 def show_models(message):
-    text = "ALL FREE MODELS (1=best, 40=fastest):\n"
-    text += "====================================\n\n"
+    text = f"AVAILABLE MODELS ({len(MODELS)}):\n"
+    text += "====================\n\n"
     
-    for num in range(1, 21):
-        num_str = str(num)
-        model_info = MODELS[num_str]
+    for num, model_info in MODELS.items():
         if model_info['name'] == current_model:
-            text += f">> {num_str}. {model_info['desc']} (active)\n"
+            text += f">> {num}. {model_info['desc']} (active)\n"
         else:
-            text += f"   {num_str}. {model_info['desc']}\n"
+            text += f"   {num}. {model_info['desc']}\n"
     
+    text += "\nSelect: /model [number]"
     bot.send_message(message.chat.id, text)
-    
-    text2 = "FREE MODELS 21-40:\n"
-    text2 += "=================\n\n"
-    for num in range(21, 41):
-        num_str = str(num)
-        model_info = MODELS[num_str]
-        if model_info['name'] == current_model:
-            text2 += f">> {num_str}. {model_info['desc']} (active)\n"
-        else:
-            text2 += f"   {num_str}. {model_info['desc']}\n"
-    
-    text2 += "\nSelect: /model [number]\n"
-    text2 += "Example: /model 1 for Llama 3.3"
-    
-    bot.send_message(message.chat.id, text2)
 
 @bot.message_handler(commands=['model'])
 def set_model(message):
@@ -288,7 +291,7 @@ def set_model(message):
             current_api = MODELS[num]['api']
             bot.reply_to(
                 message, 
-                f"Now using: {MODELS[num]['desc']}\nAPI: {current_api}"
+                f"Now using: {MODELS[num]['desc']}"
             )
         else:
             bot.reply_to(message, f"Invalid number. Use 1-{len(MODELS)}")
@@ -333,17 +336,13 @@ def chat(message):
         bot.reply_to(message, f"Error: {str(e)[:100]}")
 
 print("=" * 70)
-print("FREE AI BOT - 40 MODELS")
+print("FREE AI BOT")
 print("=" * 70)
-print(f"Telegram: {'OK' if TELEGRAM_TOKEN else 'MISSING'}")
-print(f"Groq: {'OK' if GROQ_API_KEY else 'MISSING'}")
-print(f"Hugging Face: {'OK' if HUGGINGFACE_API_KEY else 'MISSING'}")
-print(f"Current: {MODELS['1']['desc']}")
-print(f"Total FREE models: {len(MODELS)}")
-print("=" * 70)
-print("ALL MODELS ARE 100% FREE!")
-print("Groq models 1-11: Llama, Mixtral, Gemma, Qwen")
-print("Hugging Face models 12-40: Phi, Saiga, Falcon, Bloom, etc.")
+print(f"Telegram: {'OK' if TELEGRAM_TOKEN else 'ERROR'}")
+print(f"Groq: {'OK' if GROQ_AVAILABLE else 'MISSING'}")
+print(f"Hugging Face: {'OK' if HF_AVAILABLE else 'MISSING'}")
+print(f"Available models: {len(MODELS)}")
+print(f"Default: {MODELS[first_key]['desc']}")
 print("=" * 70)
 
 if __name__ == "__main__":
