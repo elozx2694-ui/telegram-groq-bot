@@ -44,7 +44,7 @@ MODELS = {
 
 # Модель по умолчанию - мощная Llama через Groq!
 current_model = 'llama-3.1-70b-versatile'  
-current_api = 'groq
+current_api = 'groq'
 
 user_history = {}
 
