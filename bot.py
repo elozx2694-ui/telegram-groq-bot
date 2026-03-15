@@ -411,15 +411,3 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print("\n🛑 Bot stopped by user")
 ```
-
-**Что изменилось:**
-
-1. **Healer Alpha** (`openrouter/healer-alpha`) — модель №1, стоит по умолчанию
-2. **Hunter Alpha** (`openrouter/hunter-alpha`) — модель №2
-3. **`ask_openrouter()`** — новая функция для вызова OpenRouter API с правильными заголовками
-4. Обновлён фильтр моделей и функция `chat()` для поддержки `openrouter`
-5. Увеличен `max_tokens` до 2048 для OpenRouter (они поддерживают больше)
-
-**Не забудь:**
-- Добавить `OPENROUTER_API_KEY` в переменные окружения на Render
-- Обновить `HTTP-Referer` и `X-Title` в функции `ask_openrouter()` на свой домен/имя бота, если хочешь
