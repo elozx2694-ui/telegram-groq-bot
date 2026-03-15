@@ -1,3 +1,6 @@
+Отлично! Вот готовый код для замены. Добавил функцию `keep_awake` после запуска веб-сервера:
+
+```python
 import telebot
 import requests
 import os
@@ -48,7 +51,7 @@ bot = telebot.TeleBot(TELEGRAM_TOKEN)
 ALL_MODELS = {
     # ========== OPENROUTER МОДЕЛИ (ПЕРВЫЕ) ==========
     '1': {'name': 'openrouter/healer-alpha', 'api': 'openrouter',
-          'desc': '🩺 Healer Alpha - Целитель (OpenRouter)'},
+          'desc': '🧠 Healer Alpha - Целитель (OpenRouter)'},
     '2': {'name': 'openrouter/hunter-alpha', 'api': 'openrouter',
           'desc': '🎯 Hunter Alpha - Охотник (OpenRouter)'},
 
@@ -70,7 +73,7 @@ ALL_MODELS = {
     '10': {'name': 'llama-3.2-3b-preview', 'api': 'groq',
            'desc': 'Llama 3.2 3B - СВЕРХБЫСТРАЯ (Groq)'},
     '11': {'name': 'llama-3.2-1b-preview', 'api': 'groq',
-           'desc': 'Llama 3.2 1B - МИКРО (Groq)'},
+           'desc': 'Llama 3.2 1B - МАЛАЯ (Groq)'},
     '12': {'name': 'gemma-7b-it', 'api': 'groq',
            'desc': 'Gemma 7B - GOOGLE (Groq)'},
     '13': {'name': 'llama-guard-3-8b', 'api': 'groq',
@@ -181,6 +184,24 @@ def run_webserver():
 
 webserver_thread = threading.Thread(target=run_webserver, daemon=True)
 webserver_thread.start()
+
+# ========== KEEP AWAKE - предотвращает засыпание на Render ==========
+RENDER_URL = "https://telegram-bot-90ez.onrender.com"
+
+def keep_awake():
+    """Пингует сервер каждые 5 минут, чтобы не уснуть"""
+    print(f"Keep-awake started for {RENDER_URL}")
+    while True:
+        try:
+            response = requests.get(RENDER_URL, timeout=10)
+            print(f"Keep-awake ping: {response.status_code}")
+        except Exception as e:
+            print(f"Keep-awake error: {e}")
+        time.sleep(300)  # 5 минут
+
+awake_thread = threading.Thread(target=keep_awake, daemon=True)
+awake_thread.start()
+# ====================================================================
 
 def ask_groq(messages, model):
     """Запрос к Groq API"""
@@ -301,7 +322,7 @@ def start(message):
         "🤖 FREE AI BOT\n"
         "===========\n\n"
         f"Текущая модель: {MODELS[first_key]['desc']}\n"
-        f"Доступные API: {'Groq ✓ ' if GROQ_AVAILABLE else ''}{'HF ✓ ' if HF_AVAILABLE else ''}{'OpenRouter ✓' if OR_AVAILABLE else ''}\n\n"
+        f"Доступные API: {'Groq ✅ ' if GROQ_AVAILABLE else ''}{'HF ✅ ' if HF_AVAILABLE else ''}{'OpenRouter ✅' if OR_AVAILABLE else ''}\n\n"
         "Команды:\n"
         "/models - список моделей\n"
         "/model [номер] - выбор модели\n"
@@ -403,3 +424,28 @@ if __name__ == "__main__":
         bot.infinity_polling(timeout=60)
     except KeyboardInterrupt:
         print("\n🛑 Bot stopped by user")
+```
+
+**Что добавил:**
+```python
+# ========== KEEP AWAKE ==========
+RENDER_URL = "https://telegram-bot-90ez.onrender.com"
+
+def keep_awake():
+    while True:
+        try:
+            requests.get(RENDER_URL, timeout=10)
+        except:
+            pass
+        time.sleep(300)  # 5 минут
+
+threading.Thread(target=keep_awake, daemon=True).start()
+```
+
+Сохрани (**Ctrl + S**), запуши:
+
+```bash
+git add .
+git commit -m "Added keep-awake to prevent sleep"
+git push
+```
