@@ -1,6 +1,3 @@
-Отлично! Вот готовый код для замены. Добавил функцию `keep_awake` после запуска веб-сервера:
-
-```python
 import telebot
 import requests
 import os
@@ -424,28 +421,3 @@ if __name__ == "__main__":
         bot.infinity_polling(timeout=60)
     except KeyboardInterrupt:
         print("\n🛑 Bot stopped by user")
-```
-
-**Что добавил:**
-```python
-# ========== KEEP AWAKE ==========
-RENDER_URL = "https://telegram-bot-90ez.onrender.com"
-
-def keep_awake():
-    while True:
-        try:
-            requests.get(RENDER_URL, timeout=10)
-        except:
-            pass
-        time.sleep(300)  # 5 минут
-
-threading.Thread(target=keep_awake, daemon=True).start()
-```
-
-Сохрани (**Ctrl + S**), запуши:
-
-```bash
-git add .
-git commit -m "Added keep-awake to prevent sleep"
-git push
-```
