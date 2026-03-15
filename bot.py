@@ -1,10 +1,3 @@
-Вот обновлённый код. Добавил:
-
-1. **Healer Alpha** и **Hunter Alpha** первыми в списке
-2. Функцию `ask_openrouter()` для вызова API
-3. Обработку `'openrouter'` в фильтрации моделей и функции `chat()`
-
-```python
 import telebot
 import requests
 import os
@@ -410,4 +403,3 @@ if __name__ == "__main__":
         bot.infinity_polling(timeout=60)
     except KeyboardInterrupt:
         print("\n🛑 Bot stopped by user")
-```
